@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -9,11 +10,32 @@ using namespace std;
 
 class Monster {
 public:
+	Monster() : maxHealth(ATTRIBUTE_MAX), health(maxHealth), damage(ATTRIBUTE_MIN) {}
+
 	virtual string getName() = 0;
 
 	virtual int getHealth() {
 		return health;
 	};
+
+	virtual void playTurn(Monster& opp) = 0;
+
+	virtual void hit(Monster& opp) {
+		cout << getName() << " attacks " << opp.getName() << " for " << damage << " damage" << endl;
+		opp.hurt(*this, damage);
+	}
+
+	virtual void hurt(Monster &opp, int amount) {
+		health -= amount;
+
+		if (health <= 0) {
+			cout << getName() << " has died" << endl;
+		}
+	};
+
+	bool isDead() {
+		return health <= 0;
+	}
 
 protected:
 	int maxHealth;
@@ -23,8 +45,19 @@ protected:
 
 class Goblin : public Monster {
 public:
+	Goblin() : Monster() {
+		damage = 10;
+		numAttacks = 4;
+	}
+
 	string getName() override {
 		return "Goblin";
+	}
+
+	void playTurn(Monster& opp) override {
+		for (int i = 0; i < numAttacks; i++) {
+			hit(opp);
+		}
 	}
 
 private:
@@ -33,8 +66,24 @@ private:
 
 class Troll : public Monster {
 public:
+	Troll() : Monster() {
+		healthRegen = 10;
+		damage = 30;
+	}
+
 	string getName() override {
 		return "Troll";
+	}
+
+	void playTurn(Monster& opp) override {
+		hit(opp);
+		heal();
+	}
+
+	void heal() {
+		int healthHealed = maxHealth > healthRegen + health ? healthRegen : maxHealth - health;
+		cout << getName() << " regenerates " << healthHealed << " health" << endl;
+		health += healthHealed;
 	}
 
 private:
@@ -43,8 +92,23 @@ private:
 
 class Orc : public Monster {
 public:
+	Orc() : Monster() {
+		damage = 5;
+		blockDamage = 10;
+		reflectDamage = 5;
+	}
+
 	string getName() override {
 		return "Orc";
+	}
+
+	void playTurn(Monster& opp) override {
+		hit(opp);
+	}
+
+	void hurt(Monster &opp, int amount) override {
+		health -= amount  - blockDamage;
+		opp.hurt(*this, reflectDamage);
 	}
 
 private:
@@ -62,7 +126,21 @@ public:
 		while (!teamRed.empty() && !teamBlue.empty()) {
 			cout << "Turn " << turnIdx << endl;
 			printComposition(teamRed, teamBlue);
-			teamRed.erase(teamRed.begin());
+
+			teamRed[0]->playTurn(*teamBlue[0]);
+
+			if (teamBlue[0]->isDead()) {
+				teamBlue.erase(teamBlue.begin());
+				break;
+			}
+
+			teamBlue[0]->playTurn(*teamRed[0]);
+
+			if (teamRed[0]->isDead()) {
+				teamRed.erase(teamRed.begin());
+				break;
+			}
+
 			turnIdx++;
 		}
 
