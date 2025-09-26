@@ -3,59 +3,49 @@
 #include <string>
 #include <vector>
 
-#define ATTRIBUTE_MAX 100
-#define ATTRIBUTE_MIN 0
-
 using namespace std;
 
 class Monster {
 public:
-	Monster() : maxHealth(ATTRIBUTE_MAX), health(maxHealth), damage(ATTRIBUTE_MIN) {}
+	Monster(string newName, int newMaxHealth, int newPower) 
+		: name(newName), 
+		  maxHealth(newMaxHealth), 
+		  health(newMaxHealth), 
+		  power(newPower)
+	{}
 
-	virtual string getName() = 0;
+	virtual ~Monster() {};
 
-	virtual int getHealth() {
-		return health;
-	};
+	const string& getName() const { return name; }
+	int getHealth() const { return health; }
+	bool isDead() const { return health <= 0; }
 
-	virtual void playTurn(Monster& opp) = 0;
+	virtual void act(Monster& opp) = 0;
 
 	virtual void hit(Monster& opp) {
-		cout << getName() << " attacks " << opp.getName() << " for " << damage << " damage" << endl;
-		opp.hurt(*this, damage);
+		int reflectDamage = opp.hurt(power);
+		health = max(0, health - reflectDamage);
 	}
 
-	virtual void hurt(Monster &opp, int amount) {
-		health -= amount;
-
-		if (health <= 0) {
-			cout << getName() << " has died" << endl;
-		}
-	};
-
-	bool isDead() {
-		return health <= 0;
+	virtual int hurt(int damage) {
+		int trueDamage = clamp(damage, 0, health);
+		health -= trueDamage;
+		return 0;
 	}
-
+	
 protected:
+	string name;
 	int maxHealth;
 	int health;
-	int damage;
+	int power;
 };
 
 class Goblin : public Monster {
 public:
-	Goblin() : Monster() {
-		damage = 10;
-		numAttacks = 4;
-	}
+	Goblin() : Monster("Goblin", 50, 10), numAttacks(4) {}
 
-	string getName() override {
-		return "Goblin";
-	}
-
-	void playTurn(Monster& opp) override {
-		for (int i = 0; i < numAttacks; i++) {
+	void act(Monster& opp) override {
+		for (int i = 0; i < numAttacks && !opp.isDead(); i++) {
 			hit(opp);
 		}
 	}
@@ -66,24 +56,17 @@ private:
 
 class Troll : public Monster {
 public:
-	Troll() : Monster() {
-		healthRegen = 10;
-		damage = 30;
-	}
+	Troll() : Monster("Troll", 80, 15), healthRegen(5) {}
 
-	string getName() override {
-		return "Troll";
-	}
-
-	void playTurn(Monster& opp) override {
+	void act(Monster& opp) override {
 		hit(opp);
 		heal();
 	}
 
 	void heal() {
-		int healthHealed = maxHealth > healthRegen + health ? healthRegen : maxHealth - health;
-		cout << getName() << " regenerates " << healthHealed << " health" << endl;
-		health += healthHealed;
+		int healthMissing = maxHealth - health;
+		int healthGain = min(healthMissing, healthRegen);
+		health += healthGain;
 	}
 
 private:
@@ -92,23 +75,17 @@ private:
 
 class Orc : public Monster {
 public:
-	Orc() : Monster() {
-		damage = 5;
-		blockDamage = 10;
-		reflectDamage = 5;
-	}
+	Orc() : Monster("Orc", 63, 9), blockDamage(6), reflectDamage(3) {}
 
-	string getName() override {
-		return "Orc";
-	}
-
-	void playTurn(Monster& opp) override {
+	void act(Monster& opp) override {
 		hit(opp);
 	}
 
-	void hurt(Monster &opp, int amount) override {
-		health -= amount  - blockDamage;
-		opp.hurt(*this, reflectDamage);
+	int hurt(int damage) override {
+		int reducedDamage = max(0, damage - blockDamage);
+		int trueDamage = clamp(reducedDamage, 0, health);
+		health -= trueDamage;
+		return reflectDamage;
 	}
 
 private:
@@ -118,55 +95,38 @@ private:
 
 class Game {
 public:
-	void battle(vector<unique_ptr<Monster>>& teamRed, vector<unique_ptr<Monster>>& teamBlue) {
-		cout << "Battle Start" << endl;
-		printComposition(teamRed, teamBlue);
+    void setup(vector<unique_ptr<Monster>> newTeamRed,
+               vector<unique_ptr<Monster>> newTeamBlue) {
+        teamRed = move(newTeamRed);
+		teamBlue = move(newTeamBlue);
+    }
 
+	void battle() {
 		int turnIdx = 1;
 		while (!teamRed.empty() && !teamBlue.empty()) {
-			cout << "Turn " << turnIdx << endl;
-			printComposition(teamRed, teamBlue);
+			teamRed.front()->act(*teamBlue.front());
+			teamBlue.front()->act(*teamRed.front());
 
-			teamRed[0]->playTurn(*teamBlue[0]);
-
-			if (teamBlue[0]->isDead()) {
-				teamBlue.erase(teamBlue.begin());
-				break;
-			}
-
-			teamBlue[0]->playTurn(*teamRed[0]);
-
-			if (teamRed[0]->isDead()) {
-				teamRed.erase(teamRed.begin());
-				break;
-			}
+			if (teamRed.front()->isDead()) teamRed.erase(teamRed.begin());
+			if (teamBlue.front()->isDead()) teamBlue.erase(teamBlue.begin());
 
 			turnIdx++;
 		}
-
-		string winner = teamRed.empty() ? "Blue" : "Red";
-		cout << "Battle Over. " << winner << " team wins!" << endl;
-		printComposition(teamRed, teamBlue);
 	}
-
-	void printComposition(vector<unique_ptr<Monster>>& teamRed, vector<unique_ptr<Monster>>& teamBlue) {
-		string teamRedName = teamRed.empty() ? "" : teamRed[0]->getName() + to_string(teamRed[0]->getHealth());
-		string teamBlueName = teamBlue.empty() ? "" : teamBlue[0]->getName() + to_string(teamBlue[0]->getHealth());
-
-		cout << "[ Red | " << teamRedName;
-		cout << " ] ... [ " << teamBlueName;
-		cout << " | Blue ]" << endl;
-	}
+private:
+	vector<unique_ptr<Monster>> teamRed;
+	vector<unique_ptr<Monster>> teamBlue;
 };
 
 int main() {
 	Game game;
-
 	vector<unique_ptr<Monster>> teamRed;
 	vector<unique_ptr<Monster>> teamBlue;
-	teamRed.push_back(unique_ptr<Monster>(new Goblin()));
-	teamBlue.push_back(unique_ptr<Monster>(new Troll()));
-	game.battle(teamRed, teamBlue);
+
+	teamRed.push_back(make_unique<Goblin>());
+	teamBlue.push_back(make_unique<Troll>());
+	game.setup(move(teamRed), move(teamBlue));
+    game.battle();
 
 	return 0;
 }
