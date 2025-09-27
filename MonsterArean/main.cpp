@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <functional>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -124,19 +125,35 @@ public:
 	Monster& front() { return *lineup.front(); }
 	const string getName() const { return name; }
 
-	// string getLabel() {
-	// 	if (empty()) return "";
-	// 	return front().getName() + "(" + to_string(front().getHealth()) + ")";
-	// }
-
     void forEach(const function<void(Monster&)>& apply) const {
         for (auto& monster: lineup) apply(*monster);
     }
 
 	friend ostream& operator<<(ostream& os, Team& team) {
 		if (team.empty()) return os;
-		os << team.front().getName() << "(" 
-		   << to_string(team.front().getHealth()) << ")";
+
+		if (team.getName() == "Red") {
+		    bool first = true;
+		    for (
+				auto it = team.lineup.rbegin(); 
+				it != team.lineup.rend(); 
+				it++
+			) {
+		        if (!first) os << " ";
+				os << (*it)->getName() << "("
+				   << (*it)->getHealth() << ")";
+		        first = false;
+		    }
+		} else {
+		    bool first = true;
+		    team.forEach([&](Monster& m) {
+		        if (!first) os << " ";
+		        os << m.getName() << "("
+				   << m.getHealth() << ")";
+		        first = false;
+		    });
+		}
+
 		return os;
 	}
 
@@ -270,11 +287,69 @@ public:
 	}
 };
 
+unique_ptr<Monster> makeRandMonster() {
+    static random_device rng; 
+	static mt19937 gen(rng());
+    uniform_int_distribution<int> distribution(0, 2);
+
+    int r = distribution(gen);
+    if (r == 0) return make_unique<Goblin>();
+    if (r == 1) return make_unique<Troll>();
+    return make_unique<Orc>();
+}
+
 int main() {
-	Team red("Red"), blue("Blue");
-	red.add(make_unique<Goblin>());
-    blue.add(make_unique<Troll>());
-    Game().battle(red, blue);
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Goblin>());
+		blue.add(make_unique<Troll>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Goblin>());
+		blue.add(make_unique<Troll>());
+		blue.add(make_unique<Troll>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Troll>());
+		blue.add(make_unique<Orc>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Troll>());
+		blue.add(make_unique<Orc>());
+		blue.add(make_unique<Orc>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Orc>());
+		blue.add(make_unique<Goblin>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		red.add(make_unique<Orc>());
+		blue.add(make_unique<Goblin>());
+		blue.add(make_unique<Goblin>());
+		Game().battle(red, blue);
+	}
+
+	{
+		Team red("Red"), blue("Blue");
+		for (int i = 0; i < 4; i++) red.add(makeRandMonster());
+		for (int i = 0; i < 4; i++) blue.add(makeRandMonster());
+		Game().battle(red, blue);
+	}
 
 	return 0;
 }
