@@ -165,27 +165,20 @@ private:
 class TextRenderer {
 public:
 	void observe(Team& teamRed, Team& teamBlue) {
-		teamRed.forEach([&](Monster& monster) {
+		observeTeam(teamRed, teamBlue);
+		observeTeam(teamBlue, teamRed);
+	}
+
+	void observeTeam(Team& source, Team& target) {
+		target.forEach([&](Monster& monster) {
 			monster.onHurt.connect([&](auto&&... args) {
-				renderAttack(teamBlue, teamRed, args...);
+				renderAttack(source, target, args...);
 			});
 		});
 
-		teamBlue.forEach([&](Monster& monster) {
-			monster.onHurt.connect([&](auto&&... args) {
-				renderAttack(teamRed, teamBlue, args...);
-			});
-		});
-
-		teamRed.forEach([&](Monster& monster) {
+		target.forEach([&](Monster& monster) {
 			monster.onHeal.connect([&](Monster& source, int healthGain) {
-				renderHeal(teamRed, monster, healthGain);
-			});
-		});
-
-		teamBlue.forEach([&](Monster& monster) {
-			monster.onHeal.connect([&](Monster& source, int healthGain) {
-				renderHeal(teamBlue, monster, healthGain);
+				renderHeal(target, monster, healthGain);
 			});
 		});
 	}
@@ -267,7 +260,9 @@ public:
 			renderer.renderTeams(teamRed, teamBlue);
 
 			teamRed.front().act(teamBlue.front());
-			teamBlue.front().act(teamRed.front());
+
+			if (!teamBlue.front().isDead()) 
+				teamBlue.front().act(teamRed.front());
 
 			if (teamRed.front().isDead()) {
 				renderer.renderDeath(teamRed, teamRed.front());
